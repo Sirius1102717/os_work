@@ -1,7 +1,8 @@
 extern crate lazy_static;
 pub use crate::account::Account;
 pub use crate::bank;
-use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, Condvar, Mutex};
+use std::thread::sleep;
 use std::thread::spawn;
 use std::time::Duration;
 
@@ -11,7 +12,7 @@ use std::time::Duration;
 // static mut DEPOSIT_LIST: Vec<(&str, f32)> = Vec::new();
 // static mut WITHDRAW_LIST: Vec<(&str, f32)> = Vec::new();
 
-enum Operation {
+enum _Operation {
     Transfer {
         payment_id: &'static str,
         collection_id: &'static str,
@@ -29,118 +30,214 @@ enum Operation {
     },
 }
 
-static mut THREAD_PRIORITY: AtomicBool = AtomicBool::new(false);
+lazy_static! {
+    // static ref THREAD_PRIORITY: Mutex<bool> = Mutex::new(true);
+    // static ref THREAD_PRIORITY: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
+    // static ref CVAD: Arc<Condvar> = Arc::new(Condvar::new());
 
-struct Handle {
+    static ref PAIR: Arc<(Mutex<bool>, Condvar)> = Arc::new((Mutex::new(true), Condvar::new()));
+    // static ref COND: Condvar = Condvar::new();
+}
+//
+struct _Handle {
     pub priority: bool,
-    pub operation: Operation,
+    pub operation: _Operation,
 }
 
-impl Handle {
-    const fn new(priority: bool, operation: Operation) -> Self {
-        Handle {
+impl _Handle {
+    const fn _new(priority: bool, operation: _Operation) -> Self {
+        _Handle {
             priority,
             operation,
         }
     }
 }
-
+//
 pub fn transfer(payment_id: &'static str, collection_id: &'static str, amount: f32) {
-    let handle = Handle::new(
-        true,
-        Operation::Transfer {
-            payment_id,
-            collection_id,
-            amount,
-        },
-    );
-    spawn(move || add(handle));
+    // let handle = Handle::new(
+    // true,
+    // Operation::Transfer {
+    // payment_id,
+    // collection_id,
+    // amount,
+    // },
+    // );
+    // add(handle);
+    // let mut priority = THREAD_PRIORITY.try_lock().unwrap();
+    // sleep(Duration::from_micros(2000_000));
+    // let mut priority = THREAD_PRIORITY.try_lock().expect("tran_pri_err");
+    // *priority = false;
+    // *priority = true;
+    let (lock, cvar) = &*Arc::clone(&PAIR);
+    let mut started = lock.lock().unwrap();
+    *started = false;
+    bank::transfer(payment_id, collection_id, amount);
+    *started = true;
+    cvar.notify_all();
+    // sleep(Duration::from_micros(2000_000));
 }
 pub fn deposit(id: &'static str, amount: f32) {
-    let handle = Handle::new(true, Operation::Deposit { id, amount });
-    spawn(move || add(handle));
+    // let mut priority = THREAD_PRIORITY.try_lock().unwrap();
+    // {
+    // let mut priority = THREAD_PRIORITY.try_lock().expect("depo_pri_err");
+    // *priority = false;
+    // bank::deposit(id, amount);
+    // *priority = true;
+    // }
+    // let cvad = Arc::clone(&CVAD);
+    // cvad.notify_all();
+    // let handle = Handle::new(true, Operation::Deposit { id, amount });
+    // add(handle);
+    let (lock, cvar) = &*Arc::clone(&PAIR);
+    let mut started = lock.lock().unwrap();
+    *started = false;
+    bank::deposit(id, amount);
+    *started = true;
+    cvar.notify_all();
 }
 
 pub fn withdraw(id: &'static str, amount: f32) {
-    let handle = Handle::new(true, Operation::Withdraw { id, amount });
-    spawn(move || add(handle));
+    // let handle = Handle::new(true, Operation::Withdraw { id, amount });
+    // add(handle);
+    // let mut priority = THREAD_PRIORITY.try_lock().unwrap();
+    // {
+    // let mut priority = THREAD_PRIORITY.try_lock().expect("with_pri_err");
+    // *priority = false;
+    // bank::withdraw(id, amount);
+    // *priority = true;
+    // }
+    // let cvad = Arc::clone(&CVAD);
+    // cvad.notify_all();
+    //
+    let (lock, cvar) = &*Arc::clone(&PAIR);
+    let mut started = lock.lock().unwrap();
+    *started = false;
+    bank::withdraw(id, amount);
+    *started = true;
+    cvar.notify_all();
 }
 
 pub fn pay_out_wages(operations: Vec<(&'static str, f32)>) {
-    let handle = Handle::new(false, Operation::PayOutWages(operations));
-    spawn(move || add(handle));
+    // let handle = Handle::new(false, Operation::PayOutWages(operations));
+    // add(handle);
+
+    // let mut priority = THREAD_PRIORITY.try_lock().unwrap();
+    // let mut priority = THREAD_PRIORITY.try_lock().expect("pay_pri_err");
+    // let mut priority = THREAD_PRIORITY.lock().expect("pay_pri_err");
+    // *priority = false;
+    // let cvad = Arc::clone(&CVAD);
+    // started = false;
+    let mut handles = vec![];
+    for operation in operations {
+        // while !*priority {
+        // priority = cvad.wait(priority).unwrap();
+        // priority = cvad.wait(priority).expect("pay_wait_err");
+        // }
+        // sleep(Duration::from_micros(1000_00));
+        let handle = spawn(move || {
+            let (lock, cvar) = &*Arc::clone(&PAIR);
+            let mut started = lock.lock().unwrap();
+            while !*started {
+                started = cvar.wait(started).unwrap();
+            }
+            bank::pay_out_wages(operation.0, operation.1);
+        });
+        // handle.join().unwrap();
+        handles.push(handle);
+    }
+    for handle in handles {
+        handle.join().unwrap();
+    }
+    sleep(Duration::from_micros(1000_00));
 }
 
 pub fn calculator_interest(ids: Vec<&'static str>) {
-    let handle = Handle::new(false, Operation::CalculatorInterest(ids));
-    spawn(move || add(handle));
+    // let handle = Handle::new(false, Operation::CalculatorInterest(ids));
+    // add(handle);
+    // let mut priority = THREAD_PRIORITY.try_lock().expect("cal_pri_err");
+    // *priority = false;
+    let mut handles = vec![];
+    // let cvad = Arc::clone(&CVAD);
+    for id in ids {
+        // while !*priority {
+        // priority = cvad.wait(priority).expect("cal_wait_err");
+        // }
+        // sleep(Duration::from_micros(1000_00));
+        let handle = spawn(move || {
+            let (lock, cvar) = &*Arc::clone(&PAIR);
+            let mut started = lock.lock().unwrap();
+            while !*started {
+                started = cvar.wait(started).unwrap();
+            }
+            bank::calculator_interest(id);
+        });
+        handles.push(handle);
+    }
+    for handle in handles {
+        handle.join().unwrap();
+    }
+    sleep(Duration::from_micros(1000_00));
+    // *priority = true;
 }
 
-fn add(oper: Handle) {
-    unsafe {
-        if oper.priority {
-            let priotity = THREAD_PRIORITY.get_mut();
-            *priotity = true;
-            match oper.operation {
-                Operation::Transfer {
-                    payment_id,
-                    collection_id,
-                    amount,
-                } => {
-                    let handle = spawn(move || {
-                        bank::transfer(payment_id, collection_id, amount);
-                        let priotity = THREAD_PRIORITY.get_mut();
-                        *priotity = false;
-                    });
-                    handle.join().unwrap();
+#[cfg(test)]
+mod test {
+
+    use std::thread::sleep;
+
+    use super::*;
+
+    #[test]
+    fn all_test() {
+        bank::init_account();
+
+        let handle = spawn(|| {
+            spawn(|| {
+                let ids = vec!["Ava", "Bella", "Carol", "Diana", "Eileen"];
+                calculator_interest(ids);
+                println!("After calculator_interest for 5 people");
+                let ids = vec!["Ava", "Bella", "Carol", "Diana", "Eileen"];
+                for id in ids {
+                    println!("{:#?}", bank::show_account(id));
                 }
-                Operation::Deposit { id, amount } => {
-                    let handle = spawn(move || {
-                        bank::deposit(id, amount);
-                        let priotity = THREAD_PRIORITY.get_mut();
-                        *priotity = false;
-                    });
-                    handle.join().unwrap();
+            });
+            spawn(|| {
+                let operations = vec![
+                    ("Ava", 300.0),
+                    ("Bella", 300.0),
+                    ("Carol", 300.0),
+                    ("Diana", 300.0),
+                    ("Eileen", 300.0),
+                ];
+
+                pay_out_wages(operations);
+                println!("After pay_out_wages for 5 people");
+                let ids = vec!["Ava", "Bella", "Carol", "Diana", "Eileen"];
+                for id in ids {
+                    println!("{:#?}", bank::show_account(id));
                 }
-                Operation::Withdraw { id, amount } => {
-                    let handle = spawn(move || {
-                        bank::withdraw(id, amount);
-                        let priotity = THREAD_PRIORITY.get_mut();
-                        *priotity = false;
-                    });
-                    handle.join().unwrap();
-                }
-                _ => (),
-            }
-        } else {
-            let priotity = THREAD_PRIORITY.get_mut();
-            if !*priotity {
-                match oper.operation {
-                    Operation::CalculatorInterest(ids) => {
-                        for id in ids {
-                            while *priotity {
-                                std::thread::sleep(Duration::from_millis(100));
-                            }
-                            let handle = spawn(move || {
-                                bank::calculator_interest(id);
-                            });
-                            handle.join().unwrap();
-                        }
-                    }
-                    Operation::PayOutWages(operations) => {
-                        for operation in operations {
-                            while *priotity {
-                                std::thread::sleep(Duration::from_millis(100));
-                            }
-                            let handle = spawn(move || {
-                                bank::pay_out_wages(operation.0, operation.1);
-                            });
-                            handle.join().unwrap();
-                        }
-                    }
-                    _ => (),
-                }
-            }
-        }
+            });
+            spawn(|| {
+                deposit("Ava", 300.0);
+                let account = bank::show_account("Ava");
+                println!("After deposit 300.0 to Ava: {:#?}", account);
+            });
+            //
+            spawn(|| {
+                withdraw("Diana", 300.0);
+                let account = bank::show_account("Diana");
+                println!("After withdraw 300.0 from Diana: {:#?}", account);
+            });
+            spawn(|| {
+                transfer("Carol", "Bella", 300.0);
+                let account = bank::show_account("Carol");
+                println!("After transfter 300.0 from Carol to Bella ");
+                println!("{:#?}", account);
+                let account = bank::show_account("Bella");
+                println!("{:#?}", account);
+            });
+        });
+        handle.join().unwrap();
+        sleep(Duration::from_secs(5));
     }
 }

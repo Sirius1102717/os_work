@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct Account {
     id: &'static str,
     blance: f32,
@@ -22,14 +23,21 @@ impl Account {
         self.blance
     }
 
-    pub fn deposit(&mut self, ammount: f32) {
-        self.blance += ammount
+    pub fn interest(&self) -> f32 {
+        self.interest
     }
-    pub fn withdraw(&mut self, ammount: f32) {
-        self.blance -= ammount
+
+    pub fn deposit(&mut self, amount: f32) {
+        self.blance += amount
+    }
+    pub fn withdraw(&mut self, amount: f32) {
+        self.blance -= amount
     }
 
     pub fn calculator_interest(&mut self) {
-        self.interest = self.blance * self.rate
+        self.interest += self.blance * self.rate
     }
+
+
+    
 }
