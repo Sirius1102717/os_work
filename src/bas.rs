@@ -1,5 +1,5 @@
 extern crate lazy_static;
-pub use crate::account::Account;
+pub use crate::aaccount::Account;
 pub use crate::bank;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::spawn;

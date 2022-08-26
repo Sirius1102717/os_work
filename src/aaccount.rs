@@ -1,24 +1,24 @@
-
 #[derive(Debug)]
-pub struct Account{
+#[deprecated]
+pub struct Account<'a> {
     // id: &'static str,
-    id: String,
+    id: &'a str,
     blance: f32,
     interest: f32,
     rate: f32,
 }
 
-impl Account{
-    pub fn new(id: &String, blance: f32, interest: f32, rate: f32) -> Account {
+impl<'a> Account<'a>{
+    pub fn new(id: &'a str, blance: f32, interest: f32, rate: f32) -> Account {
         Account {
-            id: id.to_string(),
+            id,
             blance,
             interest,
             rate,
         }
     }
-    pub fn id(&self) -> &String {
-        &self.id
+    pub fn id(&self) -> &str {
+        self.id
     }
 
     pub fn blance(&self) -> f32 {

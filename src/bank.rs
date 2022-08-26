@@ -1,69 +1,71 @@
 pub use crate::account::Account;
 use std::collections::HashMap;
 use std::sync::Mutex;
-use std::thread::{spawn, sleep};
+use std::thread::{sleep, spawn};
 use std::time::Duration;
 
 static mut ACCOUNTS: Vec<Account> = Vec::new();
 lazy_static! {
-    static ref ACCOUNTS_MAP: Mutex<HashMap<&'static str, usize>> = {
+
+    // static ref ACCOUNTS_MAP: Mutex<HashMap<&'static str, usize>> = {
+        // let m = HashMap::new();
+        // Mutex::new(m)
+    // };
+    static ref ACCOUNTS_MAP: Mutex<HashMap<String, usize>> = {
         let m = HashMap::new();
         Mutex::new(m)
     };
 }
 
-pub fn add_account(id: &'static str, blance: f32, interest: f32, rate: f32) {
-    let account: Account = Account::new(id, blance, interest, rate);
+pub fn create_account(id: String, blance: f32, interest: f32, rate: f32) {
+    let account: Account = Account::new(&id, blance, interest, rate);
     let mut index = ACCOUNTS_MAP.lock().unwrap();
     unsafe { index.insert(id, ACCOUNTS.len()) };
     unsafe { ACCOUNTS.push(account) }
 }
 
-pub fn show_account(id: &'static str) -> &Account {
+pub fn show_account(id: &str) -> &Account {
     let map = ACCOUNTS_MAP.lock().unwrap();
     let index = map.get(id).unwrap();
 
     unsafe { ACCOUNTS.get(*index).unwrap() }
 }
 
-pub fn transfer(payment_id: &'static str, collection_id: &'static str, amount: f32) {
+pub fn transfer(payment_id: &str, collection_id: &str, amount: f32) {
     // let myself = Arc::new(Mutex::new(self));
     let mut handles = vec![];
-    {
-        // let myself = Arc::clone(&myself);
-        let handle = spawn(move || match ACCOUNTS_MAP.lock().unwrap().get(payment_id) {
-            None => None,
-            Some(&index) => unsafe { Some(ACCOUNTS[index].withdraw(amount)) },
-        });
-        handles.push(handle);
-    }
-    {
-        let handle = spawn(
-            move || match ACCOUNTS_MAP.lock().unwrap().get(collection_id) {
-                None => None,
-                Some(&index) => unsafe { Some(ACCOUNTS[index].deposit(amount)) },
-            },
-        );
-        handles.push(handle);
-    }
+    // let myself = Arc::clone(&myself);
+    let &pay_index = ACCOUNTS_MAP.lock().unwrap().get(payment_id).unwrap();
+    let &coll_index = ACCOUNTS_MAP.lock().unwrap().get(collection_id).unwrap();
+    let handle = spawn(move || unsafe {
+        ACCOUNTS[pay_index].withdraw(amount);
+    });
+    handles.push(handle);
+    let handle = spawn(move || unsafe {
+        ACCOUNTS[coll_index].deposit(amount);
+    });
+    handles.push(handle);
+    // let handle = spawn( || {
+    // });
+    // handles.push(handle);
     for handle in handles {
         handle.join().unwrap();
     }
 }
 
-pub fn pay_out_wages(id: &'static str, ammount: f32) {
+pub fn pay_out_wages(id: &str, ammount: f32) {
     let &index = ACCOUNTS_MAP.lock().unwrap().get(id).unwrap();
     unsafe {
         ACCOUNTS[index].deposit(ammount);
     }
     // match ACCOUNTS_MAP.lock().unwrap().get(id) {
-        // None => None,
-        // Some(&index) => unsafe { Some(ACCOUNTS[index].deposit(ammount)) },
+    // None => None,
+    // Some(&index) => unsafe { Some(ACCOUNTS[index].deposit(ammount)) },
     // });
     // handle.join().unwrap();
 }
 
-pub fn calculator_interest(id: &'static str) {
+pub fn calculator_interest(id: &str) {
     let &index = ACCOUNTS_MAP.lock().unwrap().get(id).unwrap();
     unsafe {
         ACCOUNTS[index].calculator_interest();
@@ -74,7 +76,7 @@ pub fn calculator_interest(id: &'static str) {
     // }
 }
 
-pub fn deposit(id: &'static str, amount: f32) {
+pub fn deposit(id: &str, amount: f32) {
     let &index = ACCOUNTS_MAP.lock().unwrap().get(id).unwrap();
     unsafe {
         ACCOUNTS[index].deposit(amount);
@@ -87,7 +89,7 @@ pub fn deposit(id: &'static str, amount: f32) {
     // handle.join().unwrap();
 }
 
-pub fn withdraw(id: &'static str, amount: f32) {
+pub fn withdraw(id: &str, amount: f32) {
     let &index = ACCOUNTS_MAP.lock().unwrap().get(id).unwrap();
     unsafe {
         ACCOUNTS[index].withdraw(amount);
@@ -99,11 +101,21 @@ pub fn withdraw(id: &'static str, amount: f32) {
     // handle.join().unwrap();
 }
 pub fn init_account() {
-    add_account("Ava", 1000.0, 100.0, 0.1);
-    add_account("Bella", 1000.0, 100.0, 0.1);
-    add_account("Carol", 1000.0, 100.0, 0.1);
-    add_account("Diana", 1000.0, 100.0, 0.1);
-    add_account("Eileen", 1000.0, 100.0, 0.1);
+    create_account("Ava".to_string(), 1000.0, 100.0, 0.1);
+    create_account("Bella".to_string(), 1000.0, 100.0, 0.1);
+    create_account("Carol".to_string(), 1000.0, 100.0, 0.1);
+    create_account("Diana".to_string(), 1000.0, 100.0, 0.1);
+    create_account("Eileen".to_string(), 1000.0, 100.0, 0.1);
+}
+
+pub fn add_account(id: String) -> bool {
+    match ACCOUNTS_MAP.lock().unwrap().get(&id) {
+        Some(_) => false,
+        None => {
+            create_account(id, 0.0, 0.0, 0.0);
+            true
+        },
+    }
 }
 
 #[cfg(test)]

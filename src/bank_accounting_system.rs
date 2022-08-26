@@ -1,6 +1,5 @@
 extern crate lazy_static;
-pub use crate::account::Account;
-pub use crate::bank;
+use crate::bank;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::sleep;
 use std::thread::spawn;
@@ -53,7 +52,7 @@ impl _Handle {
     }
 }
 //
-pub fn transfer(payment_id: &'static str, collection_id: &'static str, amount: f32) {
+pub fn transfer(payment_id: &str, collection_id: &str, amount: f32) {
     // let handle = Handle::new(
     // true,
     // Operation::Transfer {
@@ -76,7 +75,7 @@ pub fn transfer(payment_id: &'static str, collection_id: &'static str, amount: f
     cvar.notify_all();
     // sleep(Duration::from_micros(2000_000));
 }
-pub fn deposit(id: &'static str, amount: f32) {
+pub fn deposit(id: &str, amount: f32) {
     // let mut priority = THREAD_PRIORITY.try_lock().unwrap();
     // {
     // let mut priority = THREAD_PRIORITY.try_lock().expect("depo_pri_err");
@@ -96,7 +95,7 @@ pub fn deposit(id: &'static str, amount: f32) {
     cvar.notify_all();
 }
 
-pub fn withdraw(id: &'static str, amount: f32) {
+pub fn withdraw(id: &str, amount: f32) {
     // let handle = Handle::new(true, Operation::Withdraw { id, amount });
     // add(handle);
     // let mut priority = THREAD_PRIORITY.try_lock().unwrap();
@@ -117,7 +116,7 @@ pub fn withdraw(id: &'static str, amount: f32) {
     cvar.notify_all();
 }
 
-pub fn pay_out_wages(operations: Vec<(&'static str, f32)>) {
+pub fn pay_out_wages(operations: Vec<(String, f32)>) {
     // let handle = Handle::new(false, Operation::PayOutWages(operations));
     // add(handle);
 
@@ -128,6 +127,7 @@ pub fn pay_out_wages(operations: Vec<(&'static str, f32)>) {
     // let cvad = Arc::clone(&CVAD);
     // started = false;
     let mut handles = vec![];
+    // let len = operations.len();
     for operation in operations {
         // while !*priority {
         // priority = cvad.wait(priority).unwrap();
@@ -140,7 +140,7 @@ pub fn pay_out_wages(operations: Vec<(&'static str, f32)>) {
             while !*started {
                 started = cvar.wait(started).unwrap();
             }
-            bank::pay_out_wages(operation.0, operation.1);
+            bank::pay_out_wages(&operation.0, operation.1);
         });
         // handle.join().unwrap();
         handles.push(handle);
@@ -151,7 +151,7 @@ pub fn pay_out_wages(operations: Vec<(&'static str, f32)>) {
     sleep(Duration::from_micros(1000_00));
 }
 
-pub fn calculator_interest(ids: Vec<&'static str>) {
+pub fn calculator_interest(ids: Vec<String>) {
     // let handle = Handle::new(false, Operation::CalculatorInterest(ids));
     // add(handle);
     // let mut priority = THREAD_PRIORITY.try_lock().expect("cal_pri_err");
@@ -169,7 +169,7 @@ pub fn calculator_interest(ids: Vec<&'static str>) {
             while !*started {
                 started = cvar.wait(started).unwrap();
             }
-            bank::calculator_interest(id);
+            bank::calculator_interest(&id);
         });
         handles.push(handle);
     }
@@ -193,7 +193,7 @@ mod test {
 
         let handle = spawn(|| {
             spawn(|| {
-                let ids = vec!["Ava", "Bella", "Carol", "Diana", "Eileen"];
+                let ids = vec![String::from("Ava"), String::from("Bella"), String::from("Carol"), String::from("Diana"), String::from("Eileen")];
                 calculator_interest(ids);
                 println!("After calculator_interest for 5 people");
                 let ids = vec!["Ava", "Bella", "Carol", "Diana", "Eileen"];
@@ -203,11 +203,11 @@ mod test {
             });
             spawn(|| {
                 let operations = vec![
-                    ("Ava", 300.0),
-                    ("Bella", 300.0),
-                    ("Carol", 300.0),
-                    ("Diana", 300.0),
-                    ("Eileen", 300.0),
+                    (String::from("Ava"), 300.0),
+                    (String::from("Bella"), 300.0),
+                    (String::from("Carol"), 300.0),
+                    (String::from("Diana"), 300.0),
+                    (String::from("Eileen"), 300.0),
                 ];
 
                 pay_out_wages(operations);
